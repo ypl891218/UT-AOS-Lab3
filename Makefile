@@ -1,25 +1,30 @@
 # Compiler and linker
 CXX = g++
-CXXFLAGS = -g -O2
-LD_SCRIPT = custom.ld
+CXXFLAGS = -g -O0
+LD_SCRIPT = default.ld
 
 # Source and output files for hello_world
 SRC_HELLO = hello_world.cpp
 OBJ_HELLO = hello_world.o
 ELF_HELLO = hello_world.elf
 
+SRC_APAGER = apager.cpp
+OBJ_APAGER = apager.o
+
+SRC_DPAGER = dpager.cpp
+OBJ_DPAGER = dpager.o
+
 # Source and output files for loader
-SRC_LOADER = loader.cpp section.cpp program.cpp auxv_util.cpp
-EXE_LOADER = loader
+SRC_LOADER = section.cpp program.cpp auxv_util.cpp
 HDR_LOADER = section.hpp program.hpp auxv_util.hpp
 OBJ_LOADER = $(SRC_LOADER:.cpp=.o)
 
 # Default target
-all: $(ELF_HELLO) $(EXE_LOADER)
+all: $(ELF_HELLO) apager # dpager
 
 # Rule to build the hello_world ELF file
 $(ELF_HELLO): $(OBJ_HELLO) $(LD_SCRIPT)
-	$(CXX) -T $(LD_SCRIPT) -static $(OBJ_HELLO) -o $(ELF_HELLO)
+	$(CXX) $(CXXFLAGS) -T $(LD_SCRIPT) -static $(OBJ_HELLO) -o $(ELF_HELLO)
 
 # Rule to compile the hello_world object file
 $(OBJ_HELLO): $(SRC_HELLO)
@@ -30,8 +35,11 @@ $(OBJ_HELLO): $(SRC_HELLO)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Rule to compile the loader executable
-$(EXE_LOADER): $(OBJ_LOADER)
-	$(CXX) $(CXXFLAGS) $(OBJ_LOADER) -o $(EXE_LOADER)
+apager: $(OBJ_APAGER) $(OBJ_LOADER)
+	$(CXX) $(CXXFLAGS) -static $(OBJ_LOADER) $(OBJ_APAGER) -o apager
+
+# dpager: dpager.cpp $(OBJ_LOADER)
+#     $(CXX) $(CXXFLAGS) -static $(OBJ_LOADER) -o dpager
 
 # Clean up generated files
 clean:

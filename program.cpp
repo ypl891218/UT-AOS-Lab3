@@ -1,5 +1,6 @@
 #include <vector>
 #include <string.h>
+#include <iostream>
 #include "program.hpp"
 
 void Program::MapSectionsFromElf(std::ifstream &file)
@@ -11,22 +12,23 @@ void Program::MapSectionsFromElf(std::ifstream &file)
     }
 
     for (int i = 0; i < elfHeader.e_phnum; ++i) {
-        // not sure..
-        const auto &ph = this->programHeaders[i];
+        // Don't make it const auto &ph, because we need to modify its p_vaddr
+        auto& ph = this->programHeaders[i];
 
         if (ph.p_type != PT_LOAD) { // Only process loadable segments 
             continue;
         }
         if (ph.p_flags & PF_X) {
-            this->text.MapFromElfPhdr(file, ph);
+            this->text.MapFromElfPhdr(file, &ph);
+            this->elfHeader.e_entry = (uint64_t)text.addr + (this->elfHeader.e_entry - ph.p_vaddr);
         } else if (ph.p_flags & PF_W) {
             if (ph.p_filesz < ph.p_memsz) {
-                this->bss.MapFromElfPhdr(file, ph);
+                this->bss.MapFromElfPhdr(file, &ph);
             } else {
-                this->data_rw.MapFromElfPhdr(file, ph);
+                this->data_rw.MapFromElfPhdr(file, &ph);
             }
         } else if (ph.p_flags & PF_R) {
-            this->data_ro.MapFromElfPhdr(file, ph);
+             this->data_ro.MapFromElfPhdr(file, &ph);
         }
     }   
 }

@@ -13,8 +13,18 @@ public:
     Elf64_Ehdr elfHeader;
     Elf64_Phdr *programHeaders;
 
+    PagerType pagerType;
+
     void MapSectionsFromElf(std::ifstream &file);
     void PrepStack(char **argv, char **envp, Elf64_auxv_t *auxv);
+
+    Program(PagerType type): pagerType(type) {
+        stack.pagerType = type;
+        bss.pagerType = type;
+        data_rw.pagerType = type;
+        data_ro.pagerType = type;
+        text.pagerType = type;
+    }
 
     ~Program() {
         free(programHeaders);

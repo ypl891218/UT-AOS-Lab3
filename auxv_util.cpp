@@ -64,12 +64,14 @@ void ModifyAuxvForChild(Program& program, Elf64_auxv_t* auxv, char *childFileNam
                 break;
             case AT_EXECFN:
                 // here, auxv->a_un.a_val is a pointer
-                strcpy((char*)(auxv->a_un.a_val), childFileName);
+                auxv->a_un.a_val = (uint64_t)childFileName;
+		//strcpy((char*)(auxv->a_un.a_val), childFileName);
                 break;
         }
         
         auxv++;
     }
+    std::cout << "Finish modifying\n";
 }
 
 void StackSanityCheck(void* top_of_stack, uint64_t argc, char** argv)

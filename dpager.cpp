@@ -69,7 +69,8 @@ int main(int argc, char **argv) {
             throw std::runtime_error("Failed to open ELF file.");
         }
 
-        Program program;
+        /* use the dpager mode */
+        Program program(PagerType::DPAGER);
 
         // Parse ELF header
         program.elfHeader = read_elf_header(file);
@@ -83,17 +84,18 @@ int main(int argc, char **argv) {
         std::cout << "ELF file successfully loaded into memory.\n";
 
         auxv = GetAuxvCopy(top_of_stack, argc, argv);
-        ModifyAuxvForChild(program, auxv, argv[1]); // suppose argv[1] is the child's program name
+	    std::cout << "Got the auxv copy\n";
+	    ModifyAuxvForChild(program, auxv, argv[1]); // suppose argv[1] is the child's program name
         std::cout << "Aux vector is now prepared\n";
 
         program.PrepStack(&argv[1], environ, auxv);
         std::cout << "Stack is now prepared\n";
 
         StackSanityCheck(program.stack.base_addr, argc-1, &argv[1]);
-
         assert((uint64_t)program.text.addr <= (uint64_t)program.elfHeader.e_entry);
         assert((uint64_t)program.elfHeader.e_entry < (uint64_t)program.text.addr + program.text.len);
         std::cout << "e_entry is indeed in TEXT section\n";
+
         clearRegisterAndJump((void*)program.elfHeader.e_entry, program.stack.base_addr);
 
         free(auxv);
