@@ -19,7 +19,7 @@ all: $(ELF_HELLO) $(EXE_LOADER)
 
 # Rule to build the hello_world ELF file
 $(ELF_HELLO): $(OBJ_HELLO) $(LD_SCRIPT)
-	$(CXX) -T $(LD_SCRIPT) $(OBJ_HELLO) -o $(ELF_HELLO)
+	$(CXX) -T $(LD_SCRIPT) -static-libstdc++ $(OBJ_HELLO) -o $(ELF_HELLO)
 
 # Rule to compile the hello_world object file
 $(OBJ_HELLO): $(SRC_HELLO)
