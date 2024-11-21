@@ -72,7 +72,7 @@ void ModifyAuxvForChild(Program& program, Elf64_auxv_t* auxv, char *childFileNam
     }
 }
 
-void stackSanityCheck(void* top_of_stack, uint64_t argc, char** argv)
+void StackSanityCheck(void* top_of_stack, uint64_t argc, char** argv)
 {
 	printf("----- stack check -----\n");
 

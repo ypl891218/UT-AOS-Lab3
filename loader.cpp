@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
         program.PrepStack(&argv[1], environ, auxv);
         std::cout << "Stack is now prepared\n";
 
-        stackSanityCheck(program.stack.base_addr, argc-1, &argv[1]);
+        StackSanityCheck(program.stack.base_addr, argc-1, &argv[1]);
 
         assert((uint64_t)program.text.addr <= (uint64_t)program.elfHeader.e_entry);
         assert((uint64_t)program.elfHeader.e_entry < (uint64_t)program.text.addr + program.text.len);
