@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/auxv.h>
 #include <assert.h>
+#include <signal.h>
 
 #include "section.hpp"
 #include "program.hpp"
@@ -50,6 +51,17 @@ static void clearRegisterAndJump(void* entry_point, void* new_stack) {
     );
 }
 
+/* use the dpager mode */
+Program program;
+
+void segfault_handler(int sig, siginfo_t *info, void *context)
+{
+    std::cout << "SIGSEGV, fault addr:" << info->si_addr << std::endl;
+    if (!program.FindSectionAndAllocNewPage((uint64_t)info->si_addr)) {
+        std::cout << "SIGSEGV, fault address " << info->si_addr << " does not belong to any sections\n";
+        exit(1);
+    }
+}
 
 extern char **environ;
 
@@ -61,26 +73,24 @@ int main(int argc, char **argv) {
 
     Elf64_auxv_t* auxv;
 
+    struct sigaction sa;
+    sa.sa_sigaction = segfault_handler;
+    sa.sa_flags = SA_SIGINFO;
+    sigaction(SIGSEGV, &sa, nullptr);
+
     try {
+        program.Initialize(argv[1], PagerType::DPAGER);
+
         void* top_of_stack = (void*)(argv-1);
-
-        std::ifstream file(argv[1], std::ios::binary);
-        if (!file.is_open()) {
-            throw std::runtime_error("Failed to open ELF file.");
-        }
-
-        /* use the dpager mode */
-        Program program(PagerType::DPAGER);
-
         // Parse ELF header
-        program.elfHeader = read_elf_header(file);
+        program.elfHeader = read_elf_header(program.file);
 
         // Validate ELF magic number
         if (memcmp(program.elfHeader.e_ident, ELFMAG, SELFMAG) != 0) {
             throw std::runtime_error("Not a valid ELF file.");
         }
 
-        program.MapSectionsFromElf(file);
+        program.MapSectionsFromElf();
         std::cout << "ELF file successfully loaded into memory.\n";
 
         auxv = GetAuxvCopy(top_of_stack, argc, argv);
@@ -91,12 +101,14 @@ int main(int argc, char **argv) {
         program.PrepStack(&argv[1], environ, auxv);
         std::cout << "Stack is now prepared\n";
 
-        StackSanityCheck(program.stack.base_addr, argc-1, &argv[1]);
-        assert((uint64_t)program.text.addr <= (uint64_t)program.elfHeader.e_entry);
-        assert((uint64_t)program.elfHeader.e_entry < (uint64_t)program.text.addr + program.text.len);
+        const auto stack = program.getSection(SectionType::STACK);
+        const auto text = program.getSection(SectionType::TEXT);
+        StackSanityCheck(stack.base_addr, argc-1, &argv[1]);
+        assert((uint64_t)text.addr <= (uint64_t)program.elfHeader.e_entry);
+        assert((uint64_t)program.elfHeader.e_entry < (uint64_t)text.addr + text.len);
         std::cout << "e_entry is indeed in TEXT section\n";
 
-        clearRegisterAndJump((void*)program.elfHeader.e_entry, program.stack.base_addr);
+        clearRegisterAndJump((void*)program.elfHeader.e_entry, stack.base_addr);
 
         free(auxv);
     } catch (const std::exception &e) {

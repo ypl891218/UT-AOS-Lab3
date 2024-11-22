@@ -1,9 +1,19 @@
 #include <vector>
 #include <string.h>
 #include <iostream>
+#include <fstream>
+#include <unistd.h>
 #include "program.hpp"
 
-void Program::MapSectionsFromElf(std::ifstream &file)
+void Program::Initialize(char* programPath, PagerType type) {
+    this->pagerType = type;
+    this->file = std::ifstream(programPath, std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open ELF file.");
+    }
+}
+
+void Program::MapSectionsFromElf()
 {
     this->programHeaders = (Elf64_Phdr *)malloc(elfHeader.e_phnum * sizeof(Elf64_Phdr));
     file.seekg(elfHeader.e_phoff, std::ios::beg);
@@ -19,20 +29,58 @@ void Program::MapSectionsFromElf(std::ifstream &file)
             continue;
         }
         if (ph.p_flags & PF_X) {
-            this->text.MapFromElfPhdr(file, &ph);
-            this->elfHeader.e_entry = (uint64_t)text.addr + (this->elfHeader.e_entry - ph.p_vaddr);
-        } else if (ph.p_flags & PF_W) {
+            this->sections.emplace_back(SectionType::TEXT, this->pagerType, file, &ph);
+            // this->text.MapFromElfPhdr(file, &ph);
+            this->elfHeader.e_entry = (uint64_t)this->sections.back().addr + (this->elfHeader.e_entry - ph.p_vaddr);
+            std::cout << "TEXT: ";
+       } else if (ph.p_flags & PF_W) {
             if (ph.p_filesz < ph.p_memsz) {
-                this->bss.MapFromElfPhdr(file, &ph);
+                this->sections.emplace_back(SectionType::BSS, this->pagerType, file, &ph);
+                // this->bss.MapFromElfPhdr(file, &ph);
+                std::cout << "BSS: ";
             } else {
-                this->data_rw.MapFromElfPhdr(file, &ph);
+                this->sections.emplace_back(SectionType::DATA_RW, this->pagerType, file, &ph);
+                // this->data_rw.MapFromElfPhdr(file, &ph);
+                std::cout << "DATA_RW: ";
             }
         } else if (ph.p_flags & PF_R) {
-             this->data_ro.MapFromElfPhdr(file, &ph);
+            this->sections.emplace_back(SectionType::DATA_RO, this->pagerType, file, &ph);
+            // this->data_ro.MapFromElfPhdr(file, &ph);
+            std::cout << "DATA_RO: ";
         }
+        std::cout << (void*)ph.p_vaddr << " " << (void*)ph.p_vaddr + ph.p_memsz << std::endl;
     }   
 }
 
-void Program::PrepStack(char **argv, char **envp, Elf64_auxv_t *auxv) {
-    this->stack.BecomeStack(argv, envp, auxv);
+void Program::PrepStack(char **argv, char **envp, Elf64_auxv_t *auxv)
+{
+    this->sections.emplace_back(argv, envp, auxv);
+}
+
+bool Program::FindSectionAndAllocNewPage(uint64_t faultAddr)
+{
+    for (auto& section: this->sections) {
+        const auto ph = section.ph;
+        if (section.sectionType == SectionType::STACK) {
+            continue;
+        }
+        if (faultAddr < ph->p_vaddr || (uint64_t) ph->p_vaddr + ph->p_memsz <= faultAddr) {
+             continue;
+        }
+
+        section.MapAdditionalPage(this->file, faultAddr);
+        return true;
+    }
+    return false;
+}
+
+const Section& Program::getSection(SectionType type)
+{
+    for (const auto& section: this->sections) {
+        if (section.sectionType == type) {
+            return section;
+        }
+    }
+    std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! get section failed !!!!!!!!!!!!!!!!1\n";
+    return this->sections[0]; // dangerous
 }

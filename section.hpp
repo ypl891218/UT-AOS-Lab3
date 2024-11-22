@@ -14,22 +14,35 @@ enum class PagerType {
     HPAGER,
 };
 
+enum class SectionType {
+    BSS,
+    TEXT,
+    DATA_RW,
+    DATA_RO,
+    STACK,
+};
+
 class Section {
 public:
     void* addr;
-    size_t len;
+    uint64_t len;
     void* base_addr;
-    
+
     Elf64_Phdr *ph; // a pointer to a Program->programHeaders[i]
     PagerType pagerType; // given by Program
 
-    void MapFromElfPhdr(std::ifstream &file, Elf64_Phdr *ph);
-    void BecomeStack(char **argv, char **envp, Elf64_auxv_t *auxv);
+    SectionType sectionType;
+
+    // void MapFromElfPhdr(std::ifstream &file, Elf64_Phdr *ph);
+    // void BecomeStack(char **argv, char **envp, Elf64_auxv_t *auxv);
+
+    void MapAdditionalPage(std::ifstream &file, uint64_t faultAddr);
+
+    Section(SectionType sectionType, PagerType pagerType, std::ifstream &file, Elf64_Phdr *ph);
+    Section(char **argv, char **envp, Elf64_auxv_t *auxv);
 
     ~Section() {
-        if (this->addr != nullptr && this->addr != MAP_FAILED) {
-            munmap(this->addr, this->len);
-        }
+        std::cout << "destructor of section\n";
     }
 };
 

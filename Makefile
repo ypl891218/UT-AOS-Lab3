@@ -20,7 +20,7 @@ HDR_LOADER = section.hpp program.hpp auxv_util.hpp
 OBJ_LOADER = $(SRC_LOADER:.cpp=.o)
 
 # Default target
-all: $(ELF_HELLO) apager # dpager
+all: $(ELF_HELLO) apager dpager
 
 # Rule to build the hello_world ELF file
 $(ELF_HELLO): $(OBJ_HELLO) $(LD_SCRIPT)
@@ -38,8 +38,8 @@ $(OBJ_HELLO): $(SRC_HELLO)
 apager: $(OBJ_APAGER) $(OBJ_LOADER)
 	$(CXX) $(CXXFLAGS) -static $(OBJ_LOADER) $(OBJ_APAGER) -o apager
 
-# dpager: dpager.cpp $(OBJ_LOADER)
-#     $(CXX) $(CXXFLAGS) -static $(OBJ_LOADER) -o dpager
+dpager: $(OBJ_DPAGER) $(OBJ_LOADER)
+	$(CXX) $(CXXFLAGS) -static $(OBJ_LOADER) $(OBJ_DPAGER) -o dpager
 
 # Clean up generated files
 clean:

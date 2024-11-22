@@ -50,6 +50,7 @@ static void clearRegisterAndJump(void* entry_point, void* new_stack) {
     );
 }
 
+Program program;
 
 extern char **environ;
 
@@ -64,22 +65,17 @@ int main(int argc, char **argv) {
     try {
         void* top_of_stack = (void*)(argv-1);
 
-        std::ifstream file(argv[1], std::ios::binary);
-        if (!file.is_open()) {
-            throw std::runtime_error("Failed to open ELF file.");
-        }
-
-        Program program(PagerType::APAGER);
+        program.Initialize(argv[1], PagerType::APAGER);
 
         // Parse ELF header
-        program.elfHeader = read_elf_header(file);
+        program.elfHeader = read_elf_header(program.file);
 
         // Validate ELF magic number
         if (memcmp(program.elfHeader.e_ident, ELFMAG, SELFMAG) != 0) {
             throw std::runtime_error("Not a valid ELF file.");
         }
 
-        program.MapSectionsFromElf(file);
+        program.MapSectionsFromElf();
         std::cout << "ELF file successfully loaded into memory.\n";
 
         auxv = GetAuxvCopy(top_of_stack, argc, argv);
@@ -90,12 +86,14 @@ int main(int argc, char **argv) {
         program.PrepStack(&argv[1], environ, auxv);
         std::cout << "Stack is now prepared\n";
 
-        StackSanityCheck(program.stack.base_addr, argc-1, &argv[1]);
-        assert((uint64_t)program.text.addr <= (uint64_t)program.elfHeader.e_entry);
-        assert((uint64_t)program.elfHeader.e_entry < (uint64_t)program.text.addr + program.text.len);
+        const auto stack = program.getSection(SectionType::STACK);
+        const auto text = program.getSection(SectionType::TEXT);
+        StackSanityCheck(stack.base_addr, argc-1, &argv[1]);
+        assert((uint64_t)text.addr <= (uint64_t)program.elfHeader.e_entry);
+        assert((uint64_t)program.elfHeader.e_entry < (uint64_t)text.addr + text.len);
         std::cout << "e_entry is indeed in TEXT section\n";
 
-        clearRegisterAndJump((void*)program.elfHeader.e_entry, program.stack.base_addr);
+        clearRegisterAndJump((void*)program.elfHeader.e_entry, stack.base_addr);
 
         free(auxv);
     } catch (const std::exception &e) {
