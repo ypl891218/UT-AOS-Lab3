@@ -51,9 +51,9 @@ Section::Section(SectionType sectionType, PagerType pagerType, std::ifstream &fi
 
         std::cout << "Address in phdr: " << reinterpret_cast<void *>(ph->p_vaddr) << ", reality: " << this->addr << std::endl; 
         std::cout << "Mapped size in phdr: " << ph->p_memsz << ", reality: " << this->len << std::endl;
-    } else if (this->pagerType == PagerType::DPAGER) {
+    } /* else if (this->pagerType == PagerType::DPAGER) {
         if (this->sectionType != SectionType::TEXT) {
-           return;
+            return;
         }       
         this->addr = mmap(reinterpret_cast<void *>(aligned_start), page_size,
                 PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -61,6 +61,18 @@ Section::Section(SectionType sectionType, PagerType pagerType, std::ifstream &fi
         this->len = mapping_size;
         file.seekg(ph->p_offset, std::ios::beg);
         file.read(reinterpret_cast<char *>(ph->p_vaddr), page_size);
+    } */ 
+    else {
+        // only allocates and map for size = ph->p_filesz
+        uint64_t logical_length = ph->p_filesz + (ph->p_vaddr - aligned_start);
+        uint64_t padded_length = (logical_length + page_size - 1) - (logical_length + page_size - 1) % page_size;        
+
+        this->addr = mmap(reinterpret_cast<void *>(aligned_start), padded_length,
+                PROT_READ | PROT_WRITE | PROT_EXEC,
+                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        this->len = padded_length;
+        file.seekg(ph->p_offset, std::ios::beg);
+        file.read(reinterpret_cast<char *>(ph->p_vaddr), ph->p_filesz);
     }
 }
 
@@ -131,38 +143,38 @@ void Section::MapAdditionalPage(std::ifstream &file, uint64_t faultAddr)
         return;
     }
 
+    // Only read the addr range: [ph->p_vaddr , ph->p_vaddr  + ph->p_filesz)
+    //               file range: [ph->p_offset, ph->p_offset + ph->p_filesz)
     size_t page_size = sysconf(_SC_PAGESIZE);
     uint64_t aligned_start = faultAddr & ~(page_size - 1);
-    uint64_t end_section = this->ph->p_vaddr + this->ph->p_memsz;
 
+    // My memory range is [aligned_start, aligned_start + mmap_len)
+    uint64_t mmap_len = std::min(page_size, this->ph->p_vaddr + this->ph->p_memsz - aligned_start);
     uint64_t ret = (uint64_t)mmap(reinterpret_cast<void *>(aligned_start),
-            std::min(end_section - aligned_start, page_size),
-            PROT_READ | PROT_WRITE | PROT_EXEC,
+            mmap_len, PROT_READ | PROT_WRITE | PROT_EXEC,
             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    assert(ret == aligned_start);
+    if (ret != aligned_start) {
+        munmap((void*)ret, mmap_len);
+        return;
+    }
+    //assert(ret == aligned_start);
+    memset((void*)aligned_start, 0, mmap_len);
 
-    std::cout << "Falls into range: (" << (void*)ph->p_vaddr << ", " << (void*)ph->p_vaddr + ph->p_memsz << ")\n";
-
-    if (aligned_start <= this->ph->p_vaddr) {
-        std::cout << "Fuck edge case: " << page_size << " " <<  this->ph->p_memsz << std::endl;
-        file.seekg(this->ph->p_offset, std::ios::beg);
-        file.read(reinterpret_cast<char *>(this->ph->p_vaddr), std::min(page_size, this->ph->p_memsz) - (this->ph->p_vaddr - aligned_start));
+/*
     } else {
-        // file: [aligned_start - this->ph->p_vaddr, aligned_start - this->ph->p_vaddr + page_size)
-        // memory: [aligned_start, aligned_start + page_size)
-
-        uint64_t file_start = aligned_start - this->ph->p_vaddr;
-        uint64_t file_end = file_start + page_size;
-        file.seekg(this->ph->p_offset + file_start, std::ios::beg);
-        memset((void*)aligned_start, 0, page_size);
-
-        if (this->ph->p_memsz <= file_start) {
-        } else if (file_start < this->ph->p_memsz && this->ph->p_memsz < file_end) {
-            std::cout << "Fuck another edge case: from " << (void*)aligned_start << " only read " << this->ph->p_memsz - file_start << std::endl;
-            std::cout << "which is to: " << (void*)aligned_start + this->ph->p_memsz - file_start << std::endl;
-            file.read(reinterpret_cast<char *>(aligned_start), this->ph->p_memsz - file_start);
-        } else {
-            file.read(reinterpret_cast<char *>(aligned_start), page_size);
+        if (ph->p_vaddr <= aligned_start && aligned_start + mmap_len < ph->p_vaddr + ph->p_filesz) {
+            file.seekg(ph->p_offset + (aligned_start - ph->p_vaddr), std::ios::beg);
+            file.read(reinterpret_cast<char *>(aligned_start), mmap_len);
+        } else if (aligned_start <= ph->p_vaddr && ph->p_vaddr + ph->p_filesz < aligned_start + mmap_len) {
+            file.seekg(ph->p_offset, std::ios::beg);
+            file.read(reinterpret_cast<char *>(ph->p_vaddr), ph->p_filesz);
+        } else if (ph->p_vaddr <= aligned_start && aligned_start < ph->p_vaddr + ph->p_filesz) {
+            file.seekg(ph->p_offset + (aligned_start - ph->p_vaddr), std::ios::beg);
+            file.read(reinterpret_cast<char *>(aligned_start), ph->p_vaddr + ph->p_filesz - aligned_start);
+        } else if (ph->p_vaddr <= aligned_start + mmap_len && aligned_start + mmap_len < ph->p_vaddr + ph->p_filesz) {
+            file.seekg(ph->p_offset, std::ios::beg);
+            file.read(reinterpret_cast<char *>(ph->p_vaddr), aligned_start + mmap_len - ph->p_vaddr);
         }
-   }
+    }
+*/
 }

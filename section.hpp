@@ -3,7 +3,7 @@
 
 #include <cstddef>
 #include <fstream>
-
+#include <unordered_set>
 #include <sys/mman.h>
 #include <elf.h>
 #include <sys/auxv.h>
@@ -15,9 +15,8 @@ enum class PagerType {
 };
 
 enum class SectionType {
-    BSS,
     TEXT,
-    DATA_RW,
+    DATA_RW, // contains .data and .bss
     DATA_RO,
     STACK,
 };
@@ -37,6 +36,11 @@ public:
     // void BecomeStack(char **argv, char **envp, Elf64_auxv_t *auxv);
 
     void MapAdditionalPage(std::ifstream &file, uint64_t faultAddr);
+
+    /* used for prediction */
+    void* page_addr_first;
+    void* page_addr_second;
+    std::unordered_set<uint64_t> allocPageAddr;
 
     Section(SectionType sectionType, PagerType pagerType, std::ifstream &file, Elf64_Phdr *ph);
     Section(char **argv, char **envp, Elf64_auxv_t *auxv);

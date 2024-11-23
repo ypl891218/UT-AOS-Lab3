@@ -30,22 +30,12 @@ void Program::MapSectionsFromElf()
         }
         if (ph.p_flags & PF_X) {
             this->sections.emplace_back(SectionType::TEXT, this->pagerType, file, &ph);
-            // this->text.MapFromElfPhdr(file, &ph);
-            this->elfHeader.e_entry = (uint64_t)this->sections.back().addr + (this->elfHeader.e_entry - ph.p_vaddr);
             std::cout << "TEXT: ";
        } else if (ph.p_flags & PF_W) {
-            if (ph.p_filesz < ph.p_memsz) {
-                this->sections.emplace_back(SectionType::BSS, this->pagerType, file, &ph);
-                // this->bss.MapFromElfPhdr(file, &ph);
-                std::cout << "BSS: ";
-            } else {
-                this->sections.emplace_back(SectionType::DATA_RW, this->pagerType, file, &ph);
-                // this->data_rw.MapFromElfPhdr(file, &ph);
-                std::cout << "DATA_RW: ";
-            }
+            this->sections.emplace_back(SectionType::DATA_RW, this->pagerType, file, &ph);
+            std::cout << "DATA_RW: ";
         } else if (ph.p_flags & PF_R) {
             this->sections.emplace_back(SectionType::DATA_RO, this->pagerType, file, &ph);
-            // this->data_ro.MapFromElfPhdr(file, &ph);
             std::cout << "DATA_RO: ";
         }
         std::cout << (void*)ph.p_vaddr << " " << (void*)ph.p_vaddr + ph.p_memsz << std::endl;
@@ -69,6 +59,13 @@ bool Program::FindSectionAndAllocNewPage(uint64_t faultAddr)
         }
 
         section.MapAdditionalPage(this->file, faultAddr);
+
+        if (pagerType == PagerType::HPAGER) {
+            if (faultAddr + 4096 < (uint64_t) ph->p_vaddr + ph->p_memsz) {
+                section.MapAdditionalPage(this->file, faultAddr + 4096);
+            }
+        }
+
         return true;
     }
     return false;
